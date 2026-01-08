@@ -4,10 +4,11 @@
     "name": "googleworkspace",
     "license": "MIT",
     "category": "Productivity",
+    "version": "2.0.0",
     "description": {
         "name": "Google Workspace",
-        "tagline": "Automated provisioning and management of Google Workspace subscriptions",
-        "long": "A comprehensive WHMCS provisioning module for Google Workspace (formerly G Suite) that enables automated provisioning and management of Google Workspace subscriptions through the Google Reseller API. Features include automatic customer and subscription provisioning, user management, license management, and more."
+        "tagline": "Complete provisioning and management of Google Workspace subscriptions",
+        "long": "A comprehensive WHMCS provisioning module for Google Workspace (formerly G Suite) that enables automated provisioning and full management of Google Workspace subscriptions through the Google Reseller API. Features include automatic customer and subscription provisioning, user management, group management, email aliases, organizational units, domain verification, license management, bulk user import, and more."
     },
     "logo": {
         "filename": "logo.png"

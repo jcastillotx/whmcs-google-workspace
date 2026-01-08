@@ -9,7 +9,7 @@
  * @author     Google Workspace Module
  * @copyright  Copyright (c) 2024
  * @license    MIT
- * @version    1.0.0
+ * @version    2.0.0
  */
 
 if (!defined("WHMCS")) {
@@ -82,6 +82,8 @@ function googleworkspace_ConfigOptions()
                 '1010020028' => 'Enterprise Plus',
                 '1010020025' => 'Enterprise Essentials',
                 'Google-Apps-Lite' => 'Frontline Starter',
+                '1010020026' => 'Frontline Standard',
+                '1010060003' => 'Essentials Starter',
             ],
             'Description' => 'Google Workspace subscription SKU',
             'Default' => 'Google-Apps-For-Business',
@@ -93,6 +95,7 @@ function googleworkspace_ConfigOptions()
                 'FLEXIBLE' => 'Flexible (Monthly)',
                 'ANNUAL_MONTHLY_PAY' => 'Annual (Monthly Payments)',
                 'ANNUAL_YEARLY_PAY' => 'Annual (Yearly Payment)',
+                'TRIAL' => 'Free Trial (30 days)',
             ],
             'Description' => 'Subscription payment plan type',
             'Default' => 'FLEXIBLE',
@@ -124,6 +127,32 @@ function googleworkspace_ConfigOptions()
             'FriendlyName' => 'Show Password in Client Area',
             'Type' => 'yesno',
             'Description' => 'Allow customers to view admin password in client area',
+        ],
+        'enable_groups' => [
+            'FriendlyName' => 'Enable Groups Management',
+            'Type' => 'yesno',
+            'Description' => 'Allow customers to manage groups in client area',
+        ],
+        'enable_aliases' => [
+            'FriendlyName' => 'Enable Email Aliases',
+            'Type' => 'yesno',
+            'Description' => 'Allow customers to manage email aliases',
+        ],
+        'enable_org_units' => [
+            'FriendlyName' => 'Enable Org Units',
+            'Type' => 'yesno',
+            'Description' => 'Allow customers to manage organizational units',
+        ],
+        'default_org_name' => [
+            'FriendlyName' => 'Default Organization Name',
+            'Type' => 'text',
+            'Size' => '40',
+            'Description' => 'Used when client has no company name',
+        ],
+        'welcome_email' => [
+            'FriendlyName' => 'Send Welcome Email',
+            'Type' => 'yesno',
+            'Description' => 'Send welcome email with credentials after provisioning',
         ],
     ];
 }
@@ -463,8 +492,74 @@ function googleworkspace_AdminCustomButtonArray()
         'Create Admin User' => 'createAdminUser',
         'Sync Subscription' => 'syncSubscription',
         'Reset Admin Password' => 'resetAdminPassword',
-        'View Users' => 'viewUsers',
+        'Start Paid Service' => 'startPaidService',
+        'Get Verification Token' => 'getVerificationToken',
     ];
+}
+
+/**
+ * Start paid service (convert trial to paid)
+ *
+ * @param array $params
+ * @return string
+ */
+function googleworkspace_startPaidService(array $params)
+{
+    try {
+        $client = new GoogleWorkspaceClient($params);
+        $serviceData = GoogleWorkspaceHelper::getServiceData($params['serviceid']);
+
+        if (empty($serviceData['customer_id']) || empty($serviceData['subscription_id'])) {
+            return 'Error: Service data not found';
+        }
+
+        $result = $client->startPaidService(
+            $serviceData['customer_id'],
+            $serviceData['subscription_id']
+        );
+
+        if ($result) {
+            GoogleWorkspaceHelper::updateServiceData($params['serviceid'], [
+                'plan_type' => 'FLEXIBLE',
+                'status' => 'active',
+            ]);
+            return 'success';
+        }
+
+        return 'Error: Failed to start paid service';
+
+    } catch (Exception $e) {
+        return 'Error: ' . $e->getMessage();
+    }
+}
+
+/**
+ * Get domain verification token
+ *
+ * @param array $params
+ * @return string
+ */
+function googleworkspace_getVerificationToken(array $params)
+{
+    try {
+        $client = new GoogleWorkspaceClient($params);
+        $serviceData = GoogleWorkspaceHelper::getServiceData($params['serviceid']);
+
+        if (empty($serviceData['customer_domain'])) {
+            return 'Error: Customer domain not found';
+        }
+
+        $token = $client->getVerificationToken($serviceData['customer_domain'], 'DNS_TXT');
+
+        if ($token && isset($token['token'])) {
+            return 'DNS TXT Record: ' . $token['token'];
+        }
+
+        return 'Error: Failed to get verification token';
+
+    } catch (Exception $e) {
+        return 'Error: ' . $e->getMessage();
+    }
 }
 
 /**
@@ -662,6 +757,7 @@ function googleworkspace_ClientArea(array $params)
             $response = ['success' => false];
 
             switch ($action) {
+                // User Management
                 case 'getUsers':
                     $users = $client->listUsers($serviceData['customer_domain']);
                     $response = ['success' => true, 'users' => $users];
@@ -672,14 +768,20 @@ function googleworkspace_ClientArea(array $params)
                     $firstName = $_POST['firstName'] ?? '';
                     $lastName = $_POST['lastName'] ?? '';
                     $password = $_POST['password'] ?? GoogleWorkspaceHelper::generatePassword();
+                    $orgUnit = $_POST['orgUnit'] ?? '/';
 
-                    $result = $client->createUser($serviceData['customer_domain'], [
+                    $userData = [
                         'primaryEmail' => $email,
                         'name' => ['givenName' => $firstName, 'familyName' => $lastName],
                         'password' => $password,
-                    ]);
+                        'changePasswordAtNextLogin' => true,
+                    ];
+                    if ($orgUnit !== '/') {
+                        $userData['orgUnitPath'] = $orgUnit;
+                    }
 
-                    $response = ['success' => (bool)$result];
+                    $result = $client->createUser($serviceData['customer_domain'], $userData);
+                    $response = ['success' => (bool)$result, 'password' => $password];
                     break;
 
                 case 'deleteUser':
@@ -699,6 +801,157 @@ function googleworkspace_ClientArea(array $params)
                     $response = ['success' => (bool)$result, 'password' => $password];
                     break;
 
+                case 'suspendUser':
+                    $email = $_POST['email'] ?? '';
+                    $result = $client->suspendUser($serviceData['customer_domain'], $email);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'unsuspendUser':
+                    $email = $_POST['email'] ?? '';
+                    $result = $client->unsuspendUser($serviceData['customer_domain'], $email);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'makeAdmin':
+                    $email = $_POST['email'] ?? '';
+                    $result = $client->makeUserAdmin($serviceData['customer_domain'], $email);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                // Group Management
+                case 'getGroups':
+                    $groups = $client->listGroups($serviceData['customer_domain']);
+                    $response = ['success' => true, 'groups' => $groups];
+                    break;
+
+                case 'addGroup':
+                    $email = $_POST['email'] ?? '';
+                    $name = $_POST['name'] ?? '';
+                    $description = $_POST['description'] ?? '';
+
+                    $result = $client->createGroup($serviceData['customer_domain'], [
+                        'email' => $email,
+                        'name' => $name,
+                        'description' => $description,
+                    ]);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'deleteGroup':
+                    $email = $_POST['email'] ?? '';
+                    $result = $client->deleteGroup($email);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'getGroupMembers':
+                    $email = $_GET['email'] ?? '';
+                    $members = $client->listGroupMembers($email);
+                    $response = ['success' => true, 'members' => $members];
+                    break;
+
+                case 'addGroupMember':
+                    $groupEmail = $_POST['groupEmail'] ?? '';
+                    $memberEmail = $_POST['memberEmail'] ?? '';
+                    $role = $_POST['role'] ?? 'MEMBER';
+                    $result = $client->addGroupMember($groupEmail, $memberEmail, $role);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'removeGroupMember':
+                    $groupEmail = $_POST['groupEmail'] ?? '';
+                    $memberEmail = $_POST['memberEmail'] ?? '';
+                    $result = $client->removeGroupMember($groupEmail, $memberEmail);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                // Alias Management
+                case 'getUserAliases':
+                    $email = $_GET['email'] ?? '';
+                    $aliases = $client->listUserAliases($email);
+                    $response = ['success' => true, 'aliases' => $aliases];
+                    break;
+
+                case 'addUserAlias':
+                    $email = $_POST['email'] ?? '';
+                    $alias = $_POST['alias'] ?? '';
+                    $result = $client->addUserAlias($email, $alias);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'deleteUserAlias':
+                    $email = $_POST['email'] ?? '';
+                    $alias = $_POST['alias'] ?? '';
+                    $result = $client->deleteUserAlias($email, $alias);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                // Organizational Units
+                case 'getOrgUnits':
+                    $orgUnits = $client->listOrgUnits($serviceData['customer_id']);
+                    $response = ['success' => true, 'orgUnits' => $orgUnits];
+                    break;
+
+                case 'addOrgUnit':
+                    $name = $_POST['name'] ?? '';
+                    $parentPath = $_POST['parentPath'] ?? '/';
+                    $description = $_POST['description'] ?? '';
+
+                    $result = $client->createOrgUnit($serviceData['customer_id'], [
+                        'name' => $name,
+                        'parentOrgUnitPath' => $parentPath,
+                        'description' => $description,
+                    ]);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'deleteOrgUnit':
+                    $path = $_POST['path'] ?? '';
+                    $result = $client->deleteOrgUnit($serviceData['customer_id'], $path);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'moveUserToOrgUnit':
+                    $email = $_POST['email'] ?? '';
+                    $orgUnit = $_POST['orgUnit'] ?? '/';
+                    $result = $client->moveUserToOrgUnit($email, $orgUnit);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                // Domain Verification
+                case 'getDomainVerificationToken':
+                    $domain = $_GET['domain'] ?? $serviceData['customer_domain'];
+                    $method = $_GET['method'] ?? 'DNS';
+                    $token = $client->getVerificationToken($domain, $method);
+                    $response = ['success' => (bool)$token, 'token' => $token];
+                    break;
+
+                case 'verifyDomain':
+                    $domain = $_POST['domain'] ?? '';
+                    $method = $_POST['method'] ?? 'DNS';
+                    $result = $client->verifyDomain($domain, $method);
+                    $response = ['success' => (bool)$result, 'result' => $result];
+                    break;
+
+                // Domain Management
+                case 'getDomains':
+                    $domains = $client->listDomains($serviceData['customer_id']);
+                    $response = ['success' => true, 'domains' => $domains];
+                    break;
+
+                case 'addDomain':
+                    $domain = $_POST['domain'] ?? '';
+                    $result = $client->addDomain($serviceData['customer_id'], $domain);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                case 'deleteDomain':
+                    $domain = $_POST['domain'] ?? '';
+                    $result = $client->deleteDomain($serviceData['customer_id'], $domain);
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                // Subscription
                 case 'getSubscription':
                     $subscription = $client->getSubscription(
                         $serviceData['customer_id'],
@@ -706,6 +959,35 @@ function googleworkspace_ClientArea(array $params)
                     );
                     $response = ['success' => true, 'subscription' => $subscription];
                     break;
+
+                case 'startPaidService':
+                    $result = $client->startPaidService(
+                        $serviceData['customer_id'],
+                        $serviceData['subscription_id']
+                    );
+                    $response = ['success' => (bool)$result];
+                    break;
+
+                // 2FA Status
+                case 'getUser2FAStatus':
+                    $email = $_GET['email'] ?? '';
+                    $status = $client->getUser2FAStatus($email);
+                    $response = ['success' => (bool)$status, 'status' => $status];
+                    break;
+
+                // Bulk Import
+                case 'bulkImportUsers':
+                    $usersData = json_decode($_POST['users'] ?? '[]', true);
+                    if (empty($usersData)) {
+                        $response = ['success' => false, 'error' => 'No users provided'];
+                        break;
+                    }
+                    $results = $client->createUsersBatch($serviceData['customer_domain'], $usersData);
+                    $response = ['success' => true, 'results' => $results];
+                    break;
+
+                default:
+                    $response = ['success' => false, 'error' => 'Unknown action'];
             }
 
             echo json_encode($response);
@@ -715,6 +997,9 @@ function googleworkspace_ClientArea(array $params)
         // Get subscription details
         $subscription = null;
         $users = [];
+        $groups = [];
+        $orgUnits = [];
+        $domains = [];
 
         if (!empty($serviceData['customer_id']) && !empty($serviceData['subscription_id'])) {
             try {
@@ -723,6 +1008,19 @@ function googleworkspace_ClientArea(array $params)
                     $serviceData['subscription_id']
                 );
                 $users = $client->listUsers($serviceData['customer_domain']);
+
+                // Load groups if enabled
+                if ($params['configoption11'] === 'on') {
+                    $groups = $client->listGroups($serviceData['customer_domain']);
+                }
+
+                // Load org units if enabled
+                if ($params['configoption13'] === 'on') {
+                    $orgUnits = $client->listOrgUnits($serviceData['customer_id']);
+                }
+
+                // Load domains
+                $domains = $client->listDomains($serviceData['customer_id']);
             } catch (Exception $e) {
                 // Silently fail - will show cached data
             }
@@ -733,10 +1031,17 @@ function googleworkspace_ClientArea(array $params)
             'serviceData' => $serviceData,
             'subscription' => $subscription,
             'users' => $users,
+            'groups' => $groups,
+            'orgUnits' => $orgUnits,
+            'domains' => $domains,
             'showPassword' => $params['configoption10'] === 'on',
             'adminPassword' => $params['configoption10'] === 'on' ? $params['password'] : '********',
+            'enableGroups' => $params['configoption11'] === 'on',
+            'enableAliases' => $params['configoption12'] === 'on',
+            'enableOrgUnits' => $params['configoption13'] === 'on',
             'skuNames' => GoogleWorkspaceHelper::getSkuNames(),
             'planNames' => GoogleWorkspaceHelper::getPlanNames(),
+            'isTrial' => ($subscription['plan']['planName'] ?? '') === 'TRIAL' || ($serviceData['plan_type'] ?? '') === 'TRIAL',
         ];
 
         return [

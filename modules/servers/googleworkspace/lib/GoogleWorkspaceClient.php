@@ -837,4 +837,539 @@ class GoogleWorkspaceClient
             return false;
         }
     }
+
+    // ========================================
+    // User Aliases (Directory API)
+    // ========================================
+
+    /**
+     * Add alias to user
+     *
+     * @param string $userEmail
+     * @param string $aliasEmail
+     * @return array|null
+     */
+    public function addUserAlias($userEmail, $aliasEmail)
+    {
+        return $this->httpRequest(
+            self::DIRECTORY_API . '/users/' . urlencode($userEmail) . '/aliases',
+            'POST',
+            ['alias' => $aliasEmail]
+        );
+    }
+
+    /**
+     * List user aliases
+     *
+     * @param string $userEmail
+     * @return array
+     */
+    public function listUserAliases($userEmail)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/users/' . urlencode($userEmail) . '/aliases'
+            );
+            return $response['aliases'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Delete user alias
+     *
+     * @param string $userEmail
+     * @param string $aliasEmail
+     * @return bool
+     */
+    public function deleteUserAlias($userEmail, $aliasEmail)
+    {
+        try {
+            $this->httpRequest(
+                self::DIRECTORY_API . '/users/' . urlencode($userEmail)
+                . '/aliases/' . urlencode($aliasEmail),
+                'DELETE'
+            );
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    // ========================================
+    // Group Members (Directory API)
+    // ========================================
+
+    /**
+     * Get group details
+     *
+     * @param string $groupEmail
+     * @return array|null
+     */
+    public function getGroup($groupEmail)
+    {
+        try {
+            return $this->httpRequest(
+                self::DIRECTORY_API . '/groups/' . urlencode($groupEmail)
+            );
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Update group
+     *
+     * @param string $groupEmail
+     * @param array $groupData
+     * @return array|null
+     */
+    public function updateGroup($groupEmail, array $groupData)
+    {
+        return $this->httpRequest(
+            self::DIRECTORY_API . '/groups/' . urlencode($groupEmail),
+            'PUT',
+            $groupData
+        );
+    }
+
+    /**
+     * List group members
+     *
+     * @param string $groupEmail
+     * @return array
+     */
+    public function listGroupMembers($groupEmail)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/groups/' . urlencode($groupEmail) . '/members'
+            );
+            return $response['members'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Update group member role
+     *
+     * @param string $groupEmail
+     * @param string $memberEmail
+     * @param string $role OWNER|MANAGER|MEMBER
+     * @return array|null
+     */
+    public function updateGroupMemberRole($groupEmail, $memberEmail, $role)
+    {
+        return $this->httpRequest(
+            self::DIRECTORY_API . '/groups/' . urlencode($groupEmail)
+            . '/members/' . urlencode($memberEmail),
+            'PATCH',
+            ['role' => $role]
+        );
+    }
+
+    // ========================================
+    // Two-Factor Authentication (Directory API)
+    // ========================================
+
+    /**
+     * Get user's 2FA status
+     *
+     * @param string $userEmail
+     * @return array|null
+     */
+    public function getUser2FAStatus($userEmail)
+    {
+        try {
+            $user = $this->httpRequest(
+                self::DIRECTORY_API . '/users/' . urlencode($userEmail)
+                . '?projection=full'
+            );
+            return [
+                'isEnrolledIn2Sv' => $user['isEnrolledIn2Sv'] ?? false,
+                'isEnforcedIn2Sv' => $user['isEnforcedIn2Sv'] ?? false,
+            ];
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    // ========================================
+    // User Photo (Directory API)
+    // ========================================
+
+    /**
+     * Get user photo
+     *
+     * @param string $userEmail
+     * @return array|null
+     */
+    public function getUserPhoto($userEmail)
+    {
+        try {
+            return $this->httpRequest(
+                self::DIRECTORY_API . '/users/' . urlencode($userEmail) . '/photos/thumbnail'
+            );
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    // ========================================
+    // Domain Management (Directory API)
+    // ========================================
+
+    /**
+     * List domains for customer
+     *
+     * @param string $customerId
+     * @return array
+     */
+    public function listDomains($customerId)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId) . '/domains'
+            );
+            return $response['domains'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Get domain details
+     *
+     * @param string $customerId
+     * @param string $domainName
+     * @return array|null
+     */
+    public function getDomain($customerId, $domainName)
+    {
+        try {
+            return $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId)
+                . '/domains/' . urlencode($domainName)
+            );
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Add secondary domain
+     *
+     * @param string $customerId
+     * @param string $domainName
+     * @return array|null
+     */
+    public function addDomain($customerId, $domainName)
+    {
+        return $this->httpRequest(
+            self::DIRECTORY_API . '/customer/' . urlencode($customerId) . '/domains',
+            'POST',
+            ['domainName' => $domainName]
+        );
+    }
+
+    /**
+     * Delete domain
+     *
+     * @param string $customerId
+     * @param string $domainName
+     * @return bool
+     */
+    public function deleteDomain($customerId, $domainName)
+    {
+        try {
+            $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId)
+                . '/domains/' . urlencode($domainName),
+                'DELETE'
+            );
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    // ========================================
+    // Reports API (for usage statistics)
+    // ========================================
+
+    const REPORTS_API = 'https://admin.googleapis.com/admin/reports/v1';
+
+    /**
+     * Get user usage report
+     *
+     * @param string $userEmail
+     * @param string $date Format: YYYY-MM-DD
+     * @return array|null
+     */
+    public function getUserUsageReport($userEmail, $date = null)
+    {
+        if (!$date) {
+            $date = date('Y-m-d', strtotime('-2 days'));
+        }
+
+        try {
+            return $this->httpRequest(
+                self::REPORTS_API . '/usage/users/' . urlencode($userEmail)
+                . '/dates/' . $date
+            );
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Get customer usage summary
+     *
+     * @param string $customerId
+     * @param string $date Format: YYYY-MM-DD
+     * @return array|null
+     */
+    public function getCustomerUsageReport($customerId, $date = null)
+    {
+        if (!$date) {
+            $date = date('Y-m-d', strtotime('-2 days'));
+        }
+
+        try {
+            return $this->httpRequest(
+                self::REPORTS_API . '/usage/dates/' . $date
+                . '?customerId=' . urlencode($customerId)
+            );
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    // ========================================
+    // License Management (Enterprise License Manager API)
+    // ========================================
+
+    const LICENSE_API = 'https://licensing.googleapis.com/apps/licensing/v1/product';
+
+    /**
+     * Get license assignments for a product
+     *
+     * @param string $productId
+     * @param string $skuId
+     * @param string $customerId
+     * @return array
+     */
+    public function listLicenseAssignments($productId, $skuId, $customerId)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::LICENSE_API . '/' . urlencode($productId)
+                . '/sku/' . urlencode($skuId)
+                . '/users?customerId=' . urlencode($customerId)
+            );
+            return $response['items'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * Assign license to user
+     *
+     * @param string $productId
+     * @param string $skuId
+     * @param string $userId
+     * @return array|null
+     */
+    public function assignLicense($productId, $skuId, $userId)
+    {
+        return $this->httpRequest(
+            self::LICENSE_API . '/' . urlencode($productId)
+            . '/sku/' . urlencode($skuId) . '/user',
+            'POST',
+            ['userId' => $userId]
+        );
+    }
+
+    /**
+     * Revoke license from user
+     *
+     * @param string $productId
+     * @param string $skuId
+     * @param string $userId
+     * @return bool
+     */
+    public function revokeLicense($productId, $skuId, $userId)
+    {
+        try {
+            $this->httpRequest(
+                self::LICENSE_API . '/' . urlencode($productId)
+                . '/sku/' . urlencode($skuId) . '/user/' . urlencode($userId),
+                'DELETE'
+            );
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
+    // ========================================
+    // Chrome Devices (Directory API)
+    // ========================================
+
+    /**
+     * List Chrome devices
+     *
+     * @param string $customerId
+     * @return array
+     */
+    public function listChromeDevices($customerId)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId) . '/devices/chromeos'
+            );
+            return $response['chromeosdevices'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    // ========================================
+    // Mobile Devices (Directory API)
+    // ========================================
+
+    /**
+     * List mobile devices
+     *
+     * @param string $customerId
+     * @return array
+     */
+    public function listMobileDevices($customerId)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId) . '/devices/mobile'
+            );
+            return $response['mobiledevices'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    // ========================================
+    // Roles (Directory API)
+    // ========================================
+
+    /**
+     * List admin roles
+     *
+     * @param string $customerId
+     * @return array
+     */
+    public function listRoles($customerId)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId) . '/roles'
+            );
+            return $response['items'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    /**
+     * List role assignments
+     *
+     * @param string $customerId
+     * @return array
+     */
+    public function listRoleAssignments($customerId)
+    {
+        try {
+            $response = $this->httpRequest(
+                self::DIRECTORY_API . '/customer/' . urlencode($customerId) . '/roleassignments'
+            );
+            return $response['items'] ?? [];
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+
+    // ========================================
+    // Transfer Token (for existing customers)
+    // ========================================
+
+    /**
+     * Insert transfer token (for deal codes)
+     *
+     * @param string $customerId
+     * @param array $tokenData
+     * @return array|null
+     */
+    public function insertTransferToken($customerId, array $tokenData)
+    {
+        return $this->httpRequest(
+            self::RESELLER_API . '/customers/' . urlencode($customerId) . '/transferToken',
+            'POST',
+            $tokenData
+        );
+    }
+
+    // ========================================
+    // Batch Operations
+    // ========================================
+
+    /**
+     * Create multiple users (batch)
+     *
+     * @param string $customerDomain
+     * @param array $users Array of user data
+     * @return array Results for each user
+     */
+    public function createUsersBatch($customerDomain, array $users)
+    {
+        $results = [];
+        foreach ($users as $userData) {
+            try {
+                $result = $this->createUser($customerDomain, $userData);
+                $results[] = [
+                    'email' => $userData['primaryEmail'],
+                    'success' => true,
+                    'data' => $result,
+                ];
+            } catch (Exception $e) {
+                $results[] = [
+                    'email' => $userData['primaryEmail'],
+                    'success' => false,
+                    'error' => $e->getMessage(),
+                ];
+            }
+        }
+        return $results;
+    }
+
+    /**
+     * Move user to organizational unit
+     *
+     * @param string $userEmail
+     * @param string $orgUnitPath
+     * @return bool
+     */
+    public function moveUserToOrgUnit($userEmail, $orgUnitPath)
+    {
+        try {
+            $this->httpRequest(
+                self::DIRECTORY_API . '/users/' . urlencode($userEmail),
+                'PATCH',
+                ['orgUnitPath' => $orgUnitPath]
+            );
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
 }
